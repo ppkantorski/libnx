@@ -112,7 +112,7 @@ debug:
 
 lib/libnx.a : lib release $(SOURCES) $(INCLUDES)
 	@$(MAKE) BUILD=release OUTPUT=$(CURDIR)/$@ \
-	BUILD_CFLAGS="-DNDEBUG=1 -O2" \
+	BUILD_CFLAGS="-DNDEBUG=1 -Os -fomit-frame-pointer -fdata-sections -ffunction-sections -ffast-math -finline-small-functions -fno-strict-aliasing -frename-registers -falign-functions=16" \
 	DEPSDIR=$(CURDIR)/release \
 	--no-print-directory -C release \
 	-f $(CURDIR)/Makefile
