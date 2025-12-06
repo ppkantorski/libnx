@@ -5,3 +5,8 @@ Based on libctru.
 
 # Install instructions
 See [Switchbrew](https://switchbrew.org/wiki/Setting_up_Development_Environment).
+
+```sh
+make clean; make -j4
+sudo -E make PREFIX=$DEVKITPRO/libnx install
+````
