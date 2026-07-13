@@ -77,7 +77,7 @@ SECTIONS
 
 	.gcc_except_table  : { *(.gcc_except_table .gcc_except_table.*) } :rodata
 	.eh_frame_hdr      : { *(.eh_frame_hdr) *(.eh_frame_entry .eh_frame_entry.*) } :rodata
-	.eh_frame          : { KEEP (*(.eh_frame)) *(.eh_frame.*) } :rodata
+	.eh_frame : { KEEP (*crtbegin.o(.eh_frame)) KEEP (*crtend.o(.eh_frame)) } :rodata
 	.gnu_extab         : { *(.gnu_extab*) } : rodata
 	.exception_ranges  : { *(.exception_ranges .exception_ranges*) } :rodata
 
@@ -192,7 +192,7 @@ SECTIONS
 	   ================== */
 
 	/* Discard sections that difficult post-processing */
-	/DISCARD/ : { *(.group .comment .note) }
+	/DISCARD/ : { *(.group .comment .note) *(.eh_frame) *(.eh_frame.*) }
 
 	/* Stabs debugging sections. */
 	.stab          0 : { *(.stab) }
