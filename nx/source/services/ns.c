@@ -488,7 +488,7 @@ Result nsGetApplicationControlData(NsApplicationControlSource source, u64 applic
     return rc;
 }
 
-Result nsGetApplicationControlData2(NsApplicationControlSource source, u64 application_id, NsApplicationControlData* buffer, size_t size, u8 flag1, u8 flag2, u64* actual_size, u32* unk) {
+Result nsGetApplicationControlData2(NsApplicationControlSource source, u64 application_id, NsApplicationControlData* buffer, size_t size, u8 flag1, u8 acd_idx, u64* actual_size, u32* unk) {
     if (hosversionBefore(19,0,0))
         return MAKERESULT(Module_Libnx, LibnxError_IncompatSysVer);
     Service srv={0}, *srv_ptr = &srv;
@@ -501,7 +501,7 @@ Result nsGetApplicationControlData2(NsApplicationControlSource source, u64 appli
         u8 flags[2];
         u8 pad[5];
         u64 application_id;
-    } in = { source, {flag1, flag2}, {0}, application_id };
+    } in = { source, {flag1, acd_idx}, {0}, application_id };
 
     u64 tmp=0;
 
@@ -541,11 +541,11 @@ Result nsGetApplicationDesiredLanguage(NacpStruct *nacp, NacpLanguageEntry **lan
 
     if (R_SUCCEEDED(rc)) {
         for (u32 i=0; i<16; i++) {
-            entry = &nacp->lang[i];
+            entry = &nacp->lang_data.lang[i];
             if (entry->name[0] || entry->author[0]) lang_bitmask |= BIT(i);
         }
         if (!lang_bitmask) {
-            *langentry = &nacp->lang[0];
+            *langentry = &nacp->lang_data.lang[0];
             return 0;
         }
     }
@@ -554,7 +554,7 @@ Result nsGetApplicationDesiredLanguage(NacpStruct *nacp, NacpLanguageEntry **lan
     if (R_SUCCEEDED(rc)) {
         if (out > 16) out = 0;
         if (lang_bitmask & BIT(out))
-            *langentry = &nacp->lang[out];
+            *langentry = &nacp->lang_data.lang[out];
         else
             rc = MAKERESULT(Module_Libnx, LibnxError_ShouldNotHappen);
     }
@@ -980,10 +980,7 @@ Result nsRequestDownloadApplicationControlData(AsyncResult *a, u64 application_i
     return _nsManCmdInU64OutAsyncResult(a, application_id, 402);
 }
 
-static Result _nsListApplicationTitleIcon(AsyncValue *a, NsApplicationControlSource source, const u64 *application_ids, s32 count, TransferMemory *tmem, u32 cmd_id) { // [8.0.0+]
-    Service srv={0};
-    Result rc = nsGetApplicationManagerInterface(&srv);
-
+static Result _nsListApplicationTitleIcon(Service* srv, AsyncValue *a, NsApplicationControlSource source, const u64 *application_ids, s32 count, TransferMemory *tmem, u32 cmd_id) {
     const struct {
         u8 source;
         u8 pad[7];
@@ -992,7 +989,7 @@ static Result _nsListApplicationTitleIcon(AsyncValue *a, NsApplicationControlSou
 
     memset(a, 0, sizeof(*a));
     Handle event = INVALID_HANDLE;
-    if (R_SUCCEEDED(rc)) rc = serviceDispatchIn(&srv, cmd_id, in,
+    Result rc = serviceDispatchIn(srv, cmd_id, in,
         .buffer_attrs = { SfBufferAttr_HipcMapAlias | SfBufferAttr_In },
         .buffers = { { application_ids, count*sizeof(u64) } },
         .in_num_handles = 1,
@@ -1006,7 +1003,6 @@ static Result _nsListApplicationTitleIcon(AsyncValue *a, NsApplicationControlSou
     if (R_SUCCEEDED(rc))
         eventLoadRemote(&a->event, event, false);
 
-    serviceClose(&srv);
     return rc;
 }
 
@@ -1016,10 +1012,41 @@ Result nsListApplicationTitle(AsyncValue *a, NsApplicationControlSource source, 
 
     Result rc=0;
     TransferMemory tmem={0};
+	Service srv={0};
 
     rc = tmemCreateFromMemory(&tmem, buffer, size, Perm_R);
-    if (R_SUCCEEDED(rc)) rc = _nsListApplicationTitleIcon(a, source, application_ids, count, &tmem, 407);
+	
+    if (R_SUCCEEDED(rc)) {
+		rc = nsGetApplicationManagerInterface(&srv);
+		if (R_SUCCEEDED(rc)) {
+			rc = _nsListApplicationTitleIcon(&srv, a, source, application_ids, count, &tmem, 407);
+			serviceClose(&srv);
+		}
+	}
     tmemClose(&tmem);
+
+    return rc;
+}
+
+Result nsListApplicationTitle2(AsyncValue *a, NsApplicationControlSource source, const u64 *application_ids, s32 count, void* buffer, size_t size) {
+    if (hosversionBefore(20,0,0))
+        return MAKERESULT(Module_Libnx, LibnxError_IncompatSysVer);
+
+    Result rc=0;
+    TransferMemory tmem={0};
+	Service srv={0};
+
+    rc = tmemCreateFromMemory(&tmem, buffer, size, Perm_R);
+	
+    if (R_SUCCEEDED(rc)) {
+		rc = nsGetReadOnlyApplicationControlDataInterface(&srv);
+		if (R_SUCCEEDED(rc)) {
+			rc = _nsListApplicationTitleIcon(&srv, a, source, application_ids, count, &tmem, 10);
+			serviceClose(&srv);
+		}
+	}
+
+	tmemClose(&tmem);
 
     return rc;
 }
@@ -1030,9 +1057,16 @@ Result nsListApplicationIcon(AsyncValue *a, NsApplicationControlSource source, c
 
     Result rc=0;
     TransferMemory tmem={0};
+	Service srv={0};
 
     rc = tmemCreateFromMemory(&tmem, buffer, size, Perm_R);
-    if (R_SUCCEEDED(rc)) rc = _nsListApplicationTitleIcon(a, source, application_ids, count, &tmem, 408);
+    if (R_SUCCEEDED(rc)) {
+		rc = nsGetApplicationManagerInterface(&srv);
+		if (R_SUCCEEDED(rc)) {
+			rc = _nsListApplicationTitleIcon(&srv, a, source, application_ids, count, &tmem, 408);
+			serviceClose(&srv);
+		}
+	}
     tmemClose(&tmem);
 
     return rc;
